@@ -8,6 +8,13 @@
  * It calls into `@/lib/db` for data tools and returns artifacts for visualizations.
  */
 
+import {
+  getCryptoPrice,
+  getHackerNewsTop,
+  getWeather,
+  webSearch,
+  wikipediaSearch,
+} from '@/lib/connectors';
 import { describeTable, listTables, runQuery } from '@/lib/db';
 import type {
   Artifact,
@@ -114,6 +121,84 @@ export const CHITTI_TOOLS: ToolDefinition[] = [
           type: 'string',
           description:
             'IANA timezone identifier. Omit to use the server\'s local timezone.',
+        },
+      },
+    },
+  },
+  {
+    name: 'web_search',
+    description:
+      'Search the web via DuckDuckGo\'s Instant Answer API (no API key required). Best for factual lookups — returns an abstract paragraph and related links. Falls back gracefully when no instant answer is available.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query in natural language.',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'wikipedia_search',
+    description:
+      'Fetch the Wikipedia summary for a topic. More reliable than web_search for well-known concepts (people, places, science, history). Returns title, extract paragraph, and article URL.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Topic, name, or concept to look up (e.g. "Iron Man", "SQLite", "Tony Stark").',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_weather',
+    description:
+      'Current weather for any city in the world via Open-Meteo (no API key required). Returns temperature in °C, apparent temperature, humidity, wind speed in km/h, and a human-readable condition.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        location: {
+          type: 'string',
+          description: 'City or place name (e.g. "Bangalore", "San Francisco", "Tokyo").',
+        },
+      },
+      required: ['location'],
+    },
+  },
+  {
+    name: 'get_crypto_price',
+    description:
+      'Current price for a cryptocurrency via CoinGecko (no API key required). Returns price, 24h change %, and market cap. Common shorthands accepted (btc, eth, sol, doge, etc.).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        symbol: {
+          type: 'string',
+          description: 'Coin symbol or name (e.g. "btc", "bitcoin", "eth", "solana").',
+        },
+        vs_currency: {
+          type: 'string',
+          description: 'Quote currency code. Defaults to "usd".',
+        },
+      },
+      required: ['symbol'],
+    },
+  },
+  {
+    name: 'get_hackernews_top',
+    description:
+      'Fetch the top stories from Hacker News right now. Use when asked what is trending in tech / startups. Returns title, URL, score, comment count for each story.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'How many stories to return (1-15). Defaults to 5.',
         },
       },
     },
@@ -274,11 +359,50 @@ export async function executeTool(
       }
 
       case 'web_search': {
-        // Reserved in the type union but intentionally not implemented in v1.
-        return {
-          ok: false,
-          error: 'web_search is not available in this build.',
-        };
+        const q = input?.query;
+        if (typeof q !== 'string' || q.trim().length === 0) {
+          return { ok: false, error: 'query (string) is required' };
+        }
+        const result = await webSearch(q.trim());
+        return { ok: true, result };
+      }
+
+      case 'wikipedia_search': {
+        const q = input?.query;
+        if (typeof q !== 'string' || q.trim().length === 0) {
+          return { ok: false, error: 'query (string) is required' };
+        }
+        const result = await wikipediaSearch(q.trim());
+        return { ok: true, result };
+      }
+
+      case 'get_weather': {
+        const loc = input?.location;
+        if (typeof loc !== 'string' || loc.trim().length === 0) {
+          return { ok: false, error: 'location (string) is required' };
+        }
+        const result = await getWeather(loc.trim());
+        return { ok: true, result };
+      }
+
+      case 'get_crypto_price': {
+        const sym = input?.symbol;
+        if (typeof sym !== 'string' || sym.trim().length === 0) {
+          return { ok: false, error: 'symbol (string) is required' };
+        }
+        const vs = typeof input?.vs_currency === 'string' ? input.vs_currency : 'usd';
+        const result = await getCryptoPrice(sym.trim(), vs);
+        return { ok: true, result };
+      }
+
+      case 'get_hackernews_top': {
+        const limitRaw = input?.limit;
+        const limit =
+          typeof limitRaw === 'number' && Number.isFinite(limitRaw)
+            ? Math.max(1, Math.min(15, Math.floor(limitRaw)))
+            : 5;
+        const stories = await getHackerNewsTop(limit);
+        return { ok: true, result: { stories, count: stories.length } };
       }
 
       default: {

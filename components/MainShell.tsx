@@ -31,6 +31,7 @@ import ChittiOrb from './ChittiOrb';
 import ConversationPanel from './ConversationPanel';
 import InputBar from './InputBar';
 import SystemStatus from './SystemStatus';
+import ViewportHUD from './ViewportHUD';
 import type { Artifact, ChatMessage } from '@/types';
 
 interface LegendChipProps {
@@ -339,21 +340,51 @@ export default function MainShell() {
     [voiceEnabled, setVoiceEnabled, modelChipValue, modelChipTone, toolCount],
   );
 
+  // Compute a responsive orb size — smaller on phones, default on desktop.
+  // (Computed once on mount via window.innerWidth; we keep it simple and
+  // avoid a resize listener since the orb gracefully accepts a CSS size.)
+  // The orb itself maintains aspect ratio inside its 360 viewBox.
   return (
-    <div className="relative min-h-screen w-full flex flex-col">
+    <div className="relative z-0 min-h-screen w-full flex flex-col">
+      {/* Decorative HUD overlay — must be the FIRST child so corner brackets
+          + edge rails sit behind everything else. pointer-events: none. */}
+      <ViewportHUD />
+
       {/* Top HUD strip */}
-      <header className="px-4 pt-4 pb-2">
+      <header className="px-4 pt-4 pb-2 relative z-10">
         <SystemStatus />
       </header>
 
-      {/* Main grid */}
-      <main className="flex-1 flex flex-col lg:flex-row gap-4 px-4 pb-4 min-h-0">
-        {/* LEFT — orb + legend */}
-        <section className="lg:w-1/3 flex flex-col items-center gap-6 py-6">
+      {/* Main grid.
+          Order on mobile: conversation FIRST (order-1), orb compact (order-2).
+          On lg+: orb section on the left, conversation on the right.
+          We use flex-col-reverse on the inner conversation/orb wrapper at mobile
+          and the natural row direction on desktop. */}
+      <main className="flex-1 flex flex-col lg:flex-row gap-4 px-4 pb-4 min-h-0 relative z-10">
+        {/* LEFT — orb + legend + telemetry stream (desktop only).
+            On mobile this section is ORDER-2 so the conversation panel
+            appears above it. */}
+        <section
+          className={cn(
+            'order-2 lg:order-1',
+            'lg:w-1/3 flex flex-col items-center gap-4 lg:gap-6 lg:py-6 py-2',
+          )}
+        >
+          {/* Orb wrapper — scales down on small screens, keeps aspect ratio.
+              Mobile: 240px. sm-md: 300px. lg+: 360px. */}
           <div className="relative">
-            <ChittiOrb state={state} />
+            <div className="sm:hidden">
+              <ChittiOrb state={state} size={240} />
+            </div>
+            <div className="hidden sm:block lg:hidden">
+              <ChittiOrb state={state} size={300} />
+            </div>
+            <div className="hidden lg:block">
+              <ChittiOrb state={state} size={360} />
+            </div>
           </div>
 
+          {/* Legend chips — unchanged definition, restyled wrapper. */}
           <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
             {legend.map((chip) => (
               <LegendChip
@@ -367,6 +398,7 @@ export default function MainShell() {
             ))}
           </div>
 
+          {/* Session counter — desktop only */}
           <div className="hidden lg:block w-full max-w-xs">
             <div className="glass hud-corners px-3 py-2 font-mono text-[10px] tracking-[0.25em] text-chitti-300/70 uppercase">
               <div className="flex items-center justify-between">
@@ -377,10 +409,16 @@ export default function MainShell() {
               </div>
             </div>
           </div>
+
         </section>
 
-        {/* RIGHT — transcript + input */}
-        <section className="flex-1 flex flex-col min-h-0 gap-3">
+        {/* RIGHT — transcript + input. Mobile order-1 so it appears first. */}
+        <section
+          className={cn(
+            'order-1 lg:order-2',
+            'flex-1 flex flex-col min-h-0 gap-3',
+          )}
+        >
           <div className="glass hud-corners flex-1 flex flex-col min-h-0 overflow-hidden">
             <ConversationPanel className="flex-1" />
           </div>

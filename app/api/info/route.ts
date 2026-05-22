@@ -21,6 +21,6 @@ export function GET() {
     openSource: info.openSource,
     hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
     isVercel: process.env.VERCEL === '1',
-    toolCount: 5,
+    toolCount: 10,
   });
 }

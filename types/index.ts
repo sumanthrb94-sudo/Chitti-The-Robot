@@ -35,6 +35,10 @@ export type ToolName =
   | 'describe_table'
   | 'visualize_data'
   | 'web_search'
+  | 'wikipedia_search'
+  | 'get_weather'
+  | 'get_crypto_price'
+  | 'get_hackernews_top'
   | 'get_time';
 
 export interface ToolDefinition {
