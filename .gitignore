@@ -44,7 +44,12 @@ next-env.d.ts
 
 # Chitti runtime
 data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.db-journal
 data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
 data/*.sqlite3
 !data/.gitkeep
 !data/seed.sql
