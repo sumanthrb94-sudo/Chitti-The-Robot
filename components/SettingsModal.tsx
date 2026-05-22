@@ -188,7 +188,10 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     if (provider === 'ollama') return 'Ollama';
     if (provider === 'openai') {
       const lower = (baseUrl ?? '').toLowerCase();
-      if (lower.includes('moonshot')) return 'Kimi';
+      // IMPORTANT: check kimi.com BEFORE moonshot — the Kimi Code endpoint
+      // is api.kimi.com/coding/v1, the legacy Moonshot one is api.moonshot.ai.
+      if (lower.includes('kimi.com')) return 'Kimi';
+      if (lower.includes('moonshot')) return 'Moonshot';
       if (lower.includes('openrouter')) return 'OpenRouter';
       if (lower.includes('groq')) return 'Groq';
       if (lower.includes('deepseek')) return 'DeepSeek';
@@ -196,6 +199,26 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     }
     return 'Auto';
   }, [settings.llm]);
+
+  // Auto-correct mismatched endpoint when an sk-kimi- key is pasted into the
+  // wrong preset. Those keys only authenticate against api.kimi.com/coding/v1,
+  // so silently fix base URL + model the moment we see the prefix — saves the
+  // user a "why does it 401" round-trip.
+  useEffect(() => {
+    const key = settings.llm.apiKey ?? '';
+    if (!key.startsWith('sk-kimi-')) return;
+    const lower = (settings.llm.baseUrl ?? '').toLowerCase();
+    if (lower.includes('kimi.com')) return; // already correct
+    setSettings((prev) => ({
+      ...prev,
+      llm: {
+        ...prev.llm,
+        provider: 'openai',
+        baseUrl: 'https://api.kimi.com/coding/v1',
+        model: 'kimi-latest',
+      },
+    }));
+  }, [settings.llm.apiKey, settings.llm.baseUrl]);
 
   const applyPreset = useCallback((preset: ProviderPreset) => {
     setSettings((prev) => ({

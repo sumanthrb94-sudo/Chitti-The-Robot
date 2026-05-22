@@ -168,18 +168,36 @@ export async function* streamOpenAIResponse({
     return;
   }
 
-  // Auto-route Kimi Code keys (sk-kimi-…) to the kimi.com endpoint when the
-  // user hasn't overridden the base URL. Those keys are rejected by
-  // api.moonshot.ai with a 401, so this saves a confused support round-trip.
+  // Auto-route Kimi Code keys (sk-kimi-…) to the kimi.com endpoint:
+  //   - When the caller didn't override base URL  → set the Kimi Code default.
+  //   - When the caller DID set api.moonshot.ai   → silently fix it. Those
+  //     keys are 100% rejected there with 401, so honouring the user's
+  //     explicit-but-wrong choice would just produce a confusing error. We
+  //     only override moonshot — any other custom proxy is left alone.
   const isKimiCodeKey = apiKey.startsWith('sk-kimi-');
-  const baseURL =
-    baseUrlOverride ||
-    process.env.OPENAI_BASE_URL ||
-    (isKimiCodeKey ? 'https://api.kimi.com/coding/v1' : 'https://api.openai.com/v1');
-  const model =
-    modelOverride ||
-    process.env.OPENAI_MODEL ||
-    (isKimiCodeKey ? 'kimi-latest' : 'gpt-4o-mini');
+  const supplied = baseUrlOverride || process.env.OPENAI_BASE_URL;
+  let baseURL: string;
+  if (isKimiCodeKey) {
+    if (!supplied || /(^|\.)moonshot\.(ai|cn)/i.test(supplied)) {
+      baseURL = 'https://api.kimi.com/coding/v1';
+    } else {
+      baseURL = supplied;
+    }
+  } else {
+    baseURL = supplied || 'https://api.openai.com/v1';
+  }
+  const suppliedModel = modelOverride || process.env.OPENAI_MODEL;
+  let model: string;
+  if (isKimiCodeKey) {
+    // If the user left the model as a Moonshot-only id, swap to kimi-latest.
+    if (!suppliedModel || /^(kimi-k\d+|moonshot-v\d+)/i.test(suppliedModel)) {
+      model = 'kimi-latest';
+    } else {
+      model = suppliedModel;
+    }
+  } else {
+    model = suppliedModel || 'gpt-4o-mini';
+  }
 
   const client = new OpenAI({ apiKey, baseURL });
   const tools = toOpenAITools(CHITTI_TOOLS);
