@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
+    "@picovoice/porcupine-web": "^3.0.3",
+    "@picovoice/web-voice-processor": "^4.0.9",
     "better-sqlite3": "^11.5.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.11.17",

@@ -3,12 +3,17 @@
 /**
  * VoiceInterface — circular mic button + visualizer + state badge.
  *
- * Behaviour:
- *   - Click mic → start SpeechRecognition. Interim transcripts populate the
- *     store's `inputText`. On final transcript we fire `onSend(text)` and clear.
- *   - Click again while listening → stop.
- *   - Auto-stops on recognition `onend`.
- *   - If Web Speech is unsupported, button is disabled with a tooltip.
+ * Two recognition paths, selected from saved settings on every click:
+ *
+ *   - Web Speech (default): `createRecognition()` streams interim text
+ *     into the store while the user speaks, fires `onSend(text)` on the
+ *     final result.
+ *
+ *   - Groq Whisper (opt-in): `createAsrRecorder()` captures the mic with
+ *     MediaRecorder. We render a "REC" pulsing dot while recording. When
+ *     the user clicks the mic again (or maxMs lapses) the captured Blob
+ *     is shipped to `/api/asr` and the returned transcript is forwarded
+ *     to `onSend`.
  */
 
 import { motion } from 'framer-motion';
@@ -16,6 +21,12 @@ import { Mic, MicOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useChittiStore } from '@/lib/store';
+import { loadSettings } from '@/lib/settings';
+import {
+  createAsrRecorder,
+  isAsrSupported,
+  type AsrRecorderHandle,
+} from '@/lib/asr';
 import {
   createRecognition,
   isVoiceInputSupported,
@@ -54,12 +65,20 @@ export function VoiceInterface({ onSend, className }: VoiceInterfaceProps) {
   const [supported, setSupported] = useState(true);
   const [listening, setListening] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  // True when we're actively recording for Groq Whisper (vs. Web Speech).
+  // Drives the "REC" pulsing dot and the PROCESSING badge while we await
+  // the transcript round-trip.
+  const [usingGroq, setUsingGroq] = useState(false);
 
   const recognitionRef = useRef<RecognitionHandle | null>(null);
+  const asrRecorderRef = useRef<AsrRecorderHandle | null>(null);
   const levelTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    setSupported(isVoiceInputSupported());
+    // Either path is enough to enable the button. Groq works on any browser
+    // with MediaRecorder + getUserMedia (covers Safari iOS where Web Speech
+    // is missing); Web Speech is the no-key default for Chromium.
+    setSupported(isVoiceInputSupported() || isAsrSupported());
   }, []);
 
   /** Cosmetic audio level — Web Speech doesn't expose raw mic data. */
@@ -82,18 +101,12 @@ export function VoiceInterface({ onSend, className }: VoiceInterfaceProps) {
     setAudioLevel(0);
   }, []);
 
-  const stop = useCallback(() => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    setListening(false);
-    stopLevelTicker();
-    // Only revert state if we're the ones holding 'listening'
-    if (state === 'listening') setState('idle');
-  }, [setState, state, stopLevelTicker]);
+  /* ─────────────  Web Speech path  ───────────── */
 
-  const start = useCallback(() => {
+  const startBrowser = useCallback(() => {
     if (!isVoiceInputSupported()) {
-      setSupported(false);
+      // Caller has already decided this isn't the Groq path; we can't help.
+      setSupported(isAsrSupported());
       return;
     }
     if (recognitionRef.current) return;
@@ -102,7 +115,6 @@ export function VoiceInterface({ onSend, className }: VoiceInterfaceProps) {
       onResult: (text, isFinal) => {
         setInputText(text);
         if (isFinal && text.length > 0) {
-          // Hand it to the parent and tear down recognition.
           onSend(text);
           setInputText('');
           recognitionRef.current?.stop();
@@ -131,7 +143,7 @@ export function VoiceInterface({ onSend, className }: VoiceInterfaceProps) {
     });
 
     if (!handle) {
-      setSupported(false);
+      setSupported(isAsrSupported());
       return;
     }
     recognitionRef.current = handle;
@@ -141,11 +153,136 @@ export function VoiceInterface({ onSend, className }: VoiceInterfaceProps) {
     handle.start();
   }, [onSend, setInputText, setState, startLevelTicker, state, stopLevelTicker]);
 
-  // Cleanup on unmount.
+  const stopBrowser = useCallback(() => {
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    setListening(false);
+    stopLevelTicker();
+    if (state === 'listening') setState('idle');
+  }, [setState, state, stopLevelTicker]);
+
+  /* ─────────────  Groq Whisper path  ───────────── */
+
+  const startGroq = useCallback(async () => {
+    if (asrRecorderRef.current) return;
+
+    const settings = loadSettings();
+    const credentials = settings.asr;
+
+    const recorder = await createAsrRecorder({
+      credentials,
+      maxMs: 15_000,
+      onTranscript: () => {
+        // The actual hand-off to onSend happens in stopGroq where we await
+        // the recorder's stop() promise — keeping the flow single-source.
+      },
+      onError: (err) => {
+        // Recorder bailed out asynchronously (e.g. auto-stop fired with no
+        // audio). Surface as a soft fault and reset UI.
+        asrRecorderRef.current = null;
+        setListening(false);
+        setUsingGroq(false);
+        stopLevelTicker();
+        const message = err.message || '';
+        if (message === 'asr_no_audio' || message === 'aborted') {
+          if (state === 'listening' || state === 'thinking') setState('idle');
+        } else {
+          setState('error');
+        }
+      },
+    });
+
+    if (!recorder) {
+      // No mic / MediaRecorder — fall back to Web Speech if available.
+      setUsingGroq(false);
+      if (isVoiceInputSupported()) {
+        startBrowser();
+      } else {
+        setSupported(false);
+        setState('error');
+      }
+      return;
+    }
+
+    asrRecorderRef.current = recorder;
+    setUsingGroq(true);
+    setListening(true);
+    setState('listening');
+    startLevelTicker();
+    try {
+      await recorder.start();
+    } catch (e) {
+      asrRecorderRef.current = null;
+      setListening(false);
+      setUsingGroq(false);
+      stopLevelTicker();
+      setState('error');
+      // eslint-disable-next-line no-console
+      console.error('[chitti] asr start failed', e);
+    }
+  }, [setState, startBrowser, startLevelTicker, state, stopLevelTicker]);
+
+  const stopGroq = useCallback(async () => {
+    const recorder = asrRecorderRef.current;
+    if (!recorder) return;
+    asrRecorderRef.current = null;
+    setListening(false);
+    stopLevelTicker();
+    // Whisper round-trip — flip to PROCESSING while we wait.
+    setState('thinking');
+    try {
+      const result = await recorder.stop();
+      const text = result.text.trim();
+      if (text.length > 0) {
+        onSend(text);
+        setInputText('');
+      } else if (state === 'thinking') {
+        setState('idle');
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[chitti] asr transcript failed', e);
+      setState('error');
+    } finally {
+      setUsingGroq(false);
+    }
+  }, [onSend, setInputText, setState, state, stopLevelTicker]);
+
+  /* ─────────────  Combined toggle  ───────────── */
+
+  const pickGroq = useCallback(() => {
+    const settings = loadSettings();
+    return (
+      settings.asr.provider === 'groq' &&
+      typeof settings.asr.apiKey === 'string' &&
+      settings.asr.apiKey.trim().length > 0 &&
+      isAsrSupported()
+    );
+  }, []);
+
+  const start = useCallback(() => {
+    if (pickGroq()) {
+      void startGroq();
+    } else {
+      startBrowser();
+    }
+  }, [pickGroq, startBrowser, startGroq]);
+
+  const stop = useCallback(() => {
+    if (asrRecorderRef.current) {
+      void stopGroq();
+    } else {
+      stopBrowser();
+    }
+  }, [stopBrowser, stopGroq]);
+
+  // Cleanup on unmount — bail out of either recognition path cleanly.
   useEffect(() => {
     return () => {
       recognitionRef.current?.abort();
       recognitionRef.current = null;
+      asrRecorderRef.current?.cancel();
+      asrRecorderRef.current = null;
       if (levelTimerRef.current !== null) {
         window.clearInterval(levelTimerRef.current);
       }
@@ -158,6 +295,24 @@ export function VoiceInterface({ onSend, className }: VoiceInterfaceProps) {
     if (listening) stop();
     else start();
   }, [isStreaming, listening, start, stop, supported]);
+
+  // Wake-word integration — `<WakeWordListener />` dispatches a
+  // `chitti:wake` event on the window when it detects the hot-word.
+  // We mirror the mic-button click behaviour: start ASR if we're idle,
+  // ignore the trigger if we're already busy (streaming, listening,
+  // or speaking — don't interrupt the assistant mid-reply).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      if (!supported) return;
+      if (isStreaming) return;
+      if (listening) return;
+      if (state === 'speaking') return;
+      start();
+    };
+    window.addEventListener('chitti:wake', handler);
+    return () => window.removeEventListener('chitti:wake', handler);
+  }, [isStreaming, listening, start, state, supported]);
 
   const disabled = !supported || isStreaming;
 
@@ -173,7 +328,9 @@ export function VoiceInterface({ onSend, className }: VoiceInterfaceProps) {
           !supported
             ? 'Voice input unsupported in this browser'
             : listening
-              ? 'Stop listening'
+              ? usingGroq
+                ? 'Stop recording (Whisper)'
+                : 'Stop listening'
               : 'Start listening'
         }
         className={cn(
@@ -210,6 +367,19 @@ export function VoiceInterface({ onSend, className }: VoiceInterfaceProps) {
         level={audioLevel}
         className="hidden md:block w-36"
       />
+
+      {/* REC dot — only shown when we're actively recording for Whisper. */}
+      {usingGroq && listening && (
+        <span className="hidden md:inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.3em] text-signal-red">
+          <motion.span
+            className="inline-block w-2 h-2 rounded-full bg-signal-red"
+            animate={{ opacity: [1, 0.25, 1] }}
+            transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+            aria-hidden
+          />
+          REC
+        </span>
+      )}
 
       <span
         className={cn(

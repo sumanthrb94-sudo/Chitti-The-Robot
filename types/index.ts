@@ -142,8 +142,74 @@ export interface ChittiTtsCredentials {
   modelId?: string;
 }
 
+/**
+ * BYO long-term memory credentials. Chitti remembers facts across sessions
+ * by upserting vector embeddings of each exchange into a user-supplied
+ * vector database (Upstash Vector). Same trust model as LLM/TTS keys —
+ * the server forwards them per-request, never persists.
+ */
+export interface ChittiMemoryCredentials {
+  vectorUrl?: string;
+  vectorToken?: string;
+  embeddingApiKey?: string;
+  /** Stable per-user namespace so memories don't bleed between users. */
+  userId?: string;
+  /** Whether memory features are enabled at all. */
+  enabled: boolean;
+}
+
+/**
+ * BYO speech-recognition credentials. `'browser'` uses the built-in Web
+ * Speech API (free, but Chrome-only and quality varies). `'groq'` posts
+ * the recorded audio to Groq's OpenAI-compatible Whisper endpoint for
+ * sub-200ms whisper-large-v3 transcription. Same trust model — the
+ * server forwards keys per-request and never persists them.
+ */
+export type AsrProviderId = 'browser' | 'groq';
+
+export interface ChittiAsrCredentials {
+  provider: AsrProviderId;
+  /** Groq API key — required when provider === 'groq'. */
+  apiKey?: string;
+  /** Model id, defaults to 'whisper-large-v3'. */
+  model?: string;
+  /** ISO-639-1 language code; omit for auto-detect. */
+  language?: string;
+}
+
+/**
+ * Wake-word detection (Picovoice Porcupine Web). When enabled and an
+ * accessKey is configured, Chitti listens passively for a hot-word
+ * ("Jarvis" by default) and trips the same code path as tapping the
+ * mic button. The accessKey is a free-tier credential from
+ * console.picovoice.ai — same BYO trust model as the LLM/TTS keys.
+ */
+export interface ChittiWakeWordCredentials {
+  enabled: boolean;
+  accessKey?: string;
+  /** Default 'jarvis' — comes from Porcupine's built-in keyword list. */
+  keyword:
+    | 'jarvis'
+    | 'alexa'
+    | 'computer'
+    | 'hey siri'
+    | 'ok google'
+    | 'porcupine'
+    | 'bumblebee'
+    | 'grasshopper'
+    | 'terminator'
+    | 'picovoice'
+    | 'blueberry'
+    | 'americano';
+  /** 0..1 — Porcupine sensitivity. Higher = more triggers (incl. false positives). */
+  sensitivity: number;
+}
+
 export interface ChittiSettings {
   llm: ChittiLlmCredentials;
   tts: ChittiTtsCredentials;
   voice: VoiceSettings;
+  memory: ChittiMemoryCredentials;
+  asr: ChittiAsrCredentials;
+  wakeWord: ChittiWakeWordCredentials;
 }

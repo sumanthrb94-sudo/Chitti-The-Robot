@@ -34,6 +34,7 @@ import InputBar from './InputBar';
 import SettingsModal from './SettingsModal';
 import SystemStatus from './SystemStatus';
 import ViewportHUD from './ViewportHUD';
+import WakeWordListener from './WakeWordListener';
 import type { Artifact, ChatMessage } from '@/types';
 
 interface LegendChipProps {
@@ -278,6 +279,21 @@ export default function MainShell() {
     setState('idle');
   }, [setIsStreaming, setState]);
 
+  /**
+   * Wake-word callback — fires when Porcupine detects the hot-word.
+   * We never interrupt an in-flight assistant reply. Otherwise we
+   * broadcast `chitti:wake` so VoiceInterface arms the mic exactly
+   * as if the user had tapped the button.
+   */
+  const handleWake = useCallback(() => {
+    const { state: cur, isStreaming: streaming } = useChittiStore.getState();
+    if (streaming) return;
+    if (cur === 'speaking' || cur === 'listening' || cur === 'thinking') return;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('chitti:wake'));
+    }
+  }, []);
+
   // Clean up any in-flight stream / TTS on unmount.
   useEffect(() => {
     return () => {
@@ -396,6 +412,11 @@ export default function MainShell() {
       </header>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* Always-on wake-word listener. Headless component — only renders
+          a small status dot when armed. Settings live in localStorage and
+          are read by the component itself; CEO wires up the settings UI. */}
+      <WakeWordListener onWake={handleWake} />
 
       {/* Main grid.
           Order on mobile: conversation FIRST (order-1), orb compact (order-2).

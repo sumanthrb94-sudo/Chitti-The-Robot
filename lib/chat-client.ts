@@ -10,8 +10,16 @@
  * (available in Node 18+ and all modern browsers).
  */
 
-import { getLlmRequestCredentials } from '@/lib/settings';
-import type { Artifact, ChatMessage, ChittiLlmCredentials } from '@/types';
+import {
+  getLlmRequestCredentials,
+  getMemoryRequestCredentials,
+} from '@/lib/settings';
+import type {
+  Artifact,
+  ChatMessage,
+  ChittiLlmCredentials,
+  ChittiMemoryCredentials,
+} from '@/types';
 
 export type StreamEvent =
   | { type: 'text'; delta: string }
@@ -26,6 +34,8 @@ export interface StreamChatArgs {
   signal?: AbortSignal;
   /** Optional override; defaults to whatever the user saved in Settings. */
   credentials?: ChittiLlmCredentials | null;
+  /** Optional memory override; defaults to whatever the user saved in Settings. */
+  memoryCredentials?: ChittiMemoryCredentials | null;
 }
 
 /**
@@ -38,10 +48,15 @@ export async function streamChat({
   onEvent,
   signal,
   credentials,
+  memoryCredentials,
 }: StreamChatArgs): Promise<void> {
   // If the caller didn't supply credentials, pull whatever is saved in
   // Settings. `null` means "fall back to server env vars".
   const creds = credentials !== undefined ? credentials : getLlmRequestCredentials();
+  const memoryCreds =
+    memoryCredentials !== undefined
+      ? memoryCredentials
+      : getMemoryRequestCredentials();
 
   let response: Response;
   try {
@@ -51,7 +66,11 @@ export async function streamChat({
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
       },
-      body: JSON.stringify({ messages, credentials: creds }),
+      body: JSON.stringify({
+        messages,
+        credentials: creds,
+        memoryCredentials: memoryCreds,
+      }),
       signal,
     });
   } catch (e) {
