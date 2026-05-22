@@ -168,36 +168,50 @@ export async function* streamOpenAIResponse({
     return;
   }
 
-  // Auto-route Kimi Code keys (sk-kimi-…) to the kimi.com endpoint:
-  //   - When the caller didn't override base URL  → set the Kimi Code default.
-  //   - When the caller DID set api.moonshot.ai   → silently fix it. Those
-  //     keys are 100% rejected there with 401, so honouring the user's
-  //     explicit-but-wrong choice would just produce a confusing error. We
-  //     only override moonshot — any other custom proxy is left alone.
+  // Kimi Code routing.
+  //
+  // sk-kimi- keys are issued by platform.kimi.ai and authenticate ONLY against
+  // https://api.kimi.com/coding/v1. They are rejected (401) at every other
+  // OpenAI-compatible endpoint, so we hard-route them — including when a stale
+  // localStorage from a previous app version ships a moonshot URL alongside
+  // the new key. The only escape hatch is the env var
+  // CHITTI_DISABLE_KIMI_ROUTING=1, which a power user can set if they're
+  // fronting Kimi with their own gateway.
   const isKimiCodeKey = apiKey.startsWith('sk-kimi-');
-  const supplied = baseUrlOverride || process.env.OPENAI_BASE_URL;
-  let baseURL: string;
-  if (isKimiCodeKey) {
-    if (!supplied || /(^|\.)moonshot\.(ai|cn)/i.test(supplied)) {
-      baseURL = 'https://api.kimi.com/coding/v1';
-    } else {
-      baseURL = supplied;
-    }
-  } else {
-    baseURL = supplied || 'https://api.openai.com/v1';
-  }
+  const suppliedBase = baseUrlOverride || process.env.OPENAI_BASE_URL;
   const suppliedModel = modelOverride || process.env.OPENAI_MODEL;
+  const disableRouting = process.env.CHITTI_DISABLE_KIMI_ROUTING === '1';
+
+  let baseURL: string;
   let model: string;
-  if (isKimiCodeKey) {
-    // If the user left the model as a Moonshot-only id, swap to kimi-latest.
+  let rewroteBase = false;
+  let rewroteModel = false;
+
+  if (isKimiCodeKey && !disableRouting) {
+    // Hard-override: any non-kimi.com URL gets corrected.
+    if (!suppliedBase || !/(^|\.)kimi\.com/i.test(suppliedBase)) {
+      baseURL = 'https://api.kimi.com/coding/v1';
+      rewroteBase = Boolean(suppliedBase);
+    } else {
+      baseURL = suppliedBase;
+    }
+    // Moonshot-only model ids → swap for kimi-latest.
     if (!suppliedModel || /^(kimi-k\d+|moonshot-v\d+)/i.test(suppliedModel)) {
       model = 'kimi-latest';
+      rewroteModel = Boolean(suppliedModel);
     } else {
       model = suppliedModel;
     }
   } else {
+    baseURL = suppliedBase || 'https://api.openai.com/v1';
     model = suppliedModel || 'gpt-4o-mini';
   }
+
+  // Surface the routing decision in server logs (key prefix only — never the
+  // full key). Helps debug "why is my request going to X?" reports.
+  console.log(
+    `[chitti.openai] key=${apiKey.slice(0, 8)}… base=${baseURL}${rewroteBase ? ' (rewrote from ' + suppliedBase + ')' : ''} model=${model}${rewroteModel ? ' (rewrote from ' + suppliedModel + ')' : ''}`,
+  );
 
   const client = new OpenAI({ apiKey, baseURL });
   const tools = toOpenAITools(CHITTI_TOOLS);
@@ -375,9 +389,16 @@ export async function* streamOpenAIResponse({
     };
     yield { type: 'done', finalMessage };
   } catch (e) {
+    const msg = errMessage(e);
+    // 401? Give the user the actual URL we hit + the key prefix so they can
+    // see whether the routing matched their expectation.
+    const is401 = /401|unauthor|invalid auth/i.test(msg);
+    const detail = is401
+      ? `Request went to ${baseURL} with model ${model} and key prefix ${apiKey.slice(0, 8)}…. Verify the key was issued for that endpoint.`
+      : `URL=${baseURL} model=${model}`;
     yield {
       type: 'error',
-      error: `${errMessage(e)} — check OPENAI_API_KEY / OPENAI_BASE_URL (currently ${baseURL}) / OPENAI_MODEL.`,
+      error: `${msg} — ${detail}`,
     };
   }
 }
