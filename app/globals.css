@@ -107,3 +107,32 @@ body::after {
   background: rgba(0, 184, 230, 0.4);
   color: #fff;
 }
+
+/* ViewportHUD scan bar — horizontal cyan line slowly travelling top to bottom */
+.scan-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(77, 220, 255, 0.0) 5%,
+    rgba(77, 220, 255, 0.18) 40%,
+    rgba(128, 231, 255, 0.32) 50%,
+    rgba(77, 220, 255, 0.18) 60%,
+    rgba(77, 220, 255, 0.0) 95%,
+    transparent 100%
+  );
+  box-shadow: 0 0 12px rgba(77, 220, 255, 0.45);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* Faint hexagon grid background overlay */
+.hex-grid {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='49' viewBox='0 0 56 49'%3E%3Cg fill='none' stroke='%234ddcff' stroke-opacity='0.07' stroke-width='1'%3E%3Cpath d='M14 0 L42 0 L56 24.5 L42 49 L14 49 L0 24.5 Z'/%3E%3Cpath d='M42 0 L56 24.5 L70 0 Z M14 0 L0 24.5 L-14 0 Z M14 49 L0 24.5 L-14 49 Z M42 49 L56 24.5 L70 49 Z'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 56px 49px;
+}

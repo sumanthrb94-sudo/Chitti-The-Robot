@@ -61,7 +61,7 @@ export function InputBar({ onSend, onStop, className }: InputBarProps) {
         className,
       )}
     >
-      <div className="flex-1 relative">
+      <div className="flex-1 min-w-0 relative">
         <div className="absolute left-3 top-3 font-mono text-[10px] tracking-[0.4em] text-chitti-400/70 pointer-events-none">
           {'>>'}
         </div>

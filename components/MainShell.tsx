@@ -91,9 +91,35 @@ export default function MainShell() {
 
   const abortRef = useRef<AbortController | null>(null);
   const [ttsSupported, setTtsSupported] = useState(true);
+  const [llmInfo, setLlmInfo] = useState<{
+    provider: 'anthropic' | 'ollama';
+    model: string;
+    openSource: boolean;
+    hasAnthropicKey: boolean;
+    isVercel: boolean;
+    toolCount: number;
+  } | null>(null);
 
   useEffect(() => {
     setTtsSupported(isVoiceOutputSupported());
+  }, []);
+
+  // Discover which LLM provider the server resolved to. Shown in the MODEL
+  // chip and used to decide whether to warn the user about misconfiguration
+  // (e.g. ollama fallback on Vercel because ANTHROPIC_API_KEY isn't set).
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/info', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((info) => {
+        if (alive) setLlmInfo(info);
+      })
+      .catch(() => {
+        /* non-fatal — chip will fall back to a placeholder */
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   /** Send a message + drive the streaming life-cycle. */
@@ -252,7 +278,31 @@ export default function MainShell() {
     };
   }, []);
 
-  const toolCount = 5; // list_tables, describe_table, query_database, visualize_data, get_time
+  const toolCount = llmInfo?.toolCount ?? 5;
+
+  // Format the MODEL chip value from the live provider info. Falls back to
+  // a placeholder while /api/info is in flight.
+  const modelChipValue = useMemo(() => {
+    if (!llmInfo) return 'DETECTING…';
+    if (llmInfo.provider === 'anthropic') {
+      // strip the "claude-" prefix, uppercase, e.g. "claude-sonnet-4-6" → "SONNET 4.6"
+      const m = llmInfo.model.match(/^claude-([a-z]+)-(\d+)-(\d+)/i);
+      if (m) return `${m[1].toUpperCase()} ${m[2]}.${m[3]}`;
+      return llmInfo.model.toUpperCase();
+    }
+    // ollama: show the family name uppercased, e.g. "llama3.1:8b" → "LLAMA3.1"
+    const base = llmInfo.model.split(':')[0]?.toUpperCase() ?? 'OLLAMA';
+    return `${base}`;
+  }, [llmInfo]);
+
+  // Warn tone when the resolved provider can't actually reach an LLM —
+  // most commonly: deployed on Vercel, no ANTHROPIC_API_KEY, fell back to
+  // Ollama (which isn't reachable from a serverless function).
+  const modelChipTone: 'ok' | 'warn' = useMemo(() => {
+    if (!llmInfo) return 'ok';
+    if (llmInfo.provider === 'ollama' && llmInfo.isVercel) return 'warn';
+    return 'ok';
+  }, [llmInfo]);
 
   const legend = useMemo(
     () => [
@@ -270,8 +320,8 @@ export default function MainShell() {
       {
         icon: <Sparkles className="w-4 h-4" strokeWidth={1.8} />,
         label: 'MODEL',
-        value: 'CLAUDE 4.6',
-        tone: 'ok' as const,
+        value: modelChipValue,
+        tone: modelChipTone,
       },
       {
         icon: <Database className="w-4 h-4" strokeWidth={1.8} />,
@@ -286,7 +336,7 @@ export default function MainShell() {
         tone: 'ok' as const,
       },
     ],
-    [voiceEnabled, setVoiceEnabled],
+    [voiceEnabled, setVoiceEnabled, modelChipValue, modelChipTone, toolCount],
   );
 
   return (

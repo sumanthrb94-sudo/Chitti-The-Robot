@@ -272,9 +272,13 @@ export async function* streamOllamaResponse({
     };
     yield { type: 'done', finalMessage };
   } catch (e) {
+    const onVercel = process.env.VERCEL === '1';
+    const hint = onVercel
+      ? `No LLM configured. On Vercel, the easiest fix is to add ANTHROPIC_API_KEY to your project's environment variables and redeploy. Alternatively, point OLLAMA_BASE_URL at a publicly reachable Ollama server.`
+      : `Is ollama running at ${host}? Try \`ollama serve\` and \`ollama pull ${model}\`.`;
     yield {
       type: 'error',
-      error: `Ollama error: ${errMessage(e)}. Is ollama running at ${host}? Try \`ollama serve\` and \`ollama pull ${model}\`.`,
+      error: `${errMessage(e)} — ${hint}`,
     };
   }
 }

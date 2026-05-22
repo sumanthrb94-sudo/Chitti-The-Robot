@@ -205,7 +205,11 @@ export function VoiceInterface({ onSend, className }: VoiceInterfaceProps) {
         )}
       </motion.button>
 
-      <VoiceVisualizer active={listening} level={audioLevel} className="w-36" />
+      <VoiceVisualizer
+        active={listening}
+        level={audioLevel}
+        className="hidden md:block w-36"
+      />
 
       <span
         className={cn(

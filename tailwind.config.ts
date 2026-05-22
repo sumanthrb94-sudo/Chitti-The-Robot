@@ -46,6 +46,10 @@ const config: Config = {
         'spin-reverse': 'spin 8s linear infinite reverse',
         'orb-breathe': 'orbBreathe 4s ease-in-out infinite',
         'scan': 'scan 3s linear infinite',
+        'scan-slow': 'scan 8s linear infinite',
+        'flicker': 'flicker 1.8s linear infinite',
+        'radiate': 'radiate 1.8s ease-out infinite',
+        'tick-fade': 'tickFade 0.6s ease-out forwards',
       },
       keyframes: {
         orbBreathe: {
@@ -56,6 +60,22 @@ const config: Config = {
           '0%':   { transform: 'translateY(-100%)', opacity: '0' },
           '50%':  { opacity: '1' },
           '100%': { transform: 'translateY(100%)', opacity: '0' },
+        },
+        flicker: {
+          '0%, 100%': { opacity: '1' },
+          '7%':       { opacity: '0.55' },
+          '9%':       { opacity: '1' },
+          '53%':      { opacity: '1' },
+          '55%':      { opacity: '0.4' },
+          '57%':      { opacity: '1' },
+        },
+        radiate: {
+          '0%':   { transform: 'scale(0.7)', opacity: '0.65' },
+          '100%': { transform: 'scale(1.9)', opacity: '0' },
+        },
+        tickFade: {
+          '0%':   { opacity: '0', transform: 'translateY(4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
     },
