@@ -10,28 +10,55 @@
  *                   (Moonshot/Kimi, OpenAI, OpenRouter, Together, Groq,
  *                    DeepSeek, vLLM, LM Studio, …)
  *
- * Selection precedence:
- *   1. Explicit env: LLM_PROVIDER=anthropic|ollama|openai
- *   2. Implicit:
+ * Selection precedence (per request, with optional BYO credentials):
+ *   1. The request's `LlmCredentials.provider` if set (and != 'auto')
+ *   2. Explicit env: LLM_PROVIDER=anthropic|ollama|openai
+ *   3. Implicit:
  *        OPENAI_API_KEY present    → openai
  *        ANTHROPIC_API_KEY present → anthropic
  *        otherwise                 → ollama
  *
- * All providers yield the same StreamEvent union, so the chat route doesn't
- * need to know which one it's talking to.
+ * Callers can also pass `apiKey`, `baseUrl`, `model` in credentials to
+ * override env vars — that's how the Settings modal feeds user-pasted
+ * keys through without server-side env config.
  */
 
 import { streamChittiResponse } from '@/lib/claude';
 import { streamOllamaResponse } from '@/lib/ollama';
 import { streamOpenAIResponse } from '@/lib/openai-compat';
 import type { StreamEvent } from '@/lib/stream-event';
-import type { ChatMessage } from '@/types';
+import type { ChatMessage, ChittiLlmCredentials } from '@/types';
 
 export type { StreamEvent } from '@/lib/stream-event';
 
 export type LlmProvider = 'anthropic' | 'ollama' | 'openai';
 
-export function resolveProvider(): LlmProvider {
+export interface ResolvedCredentials {
+  provider: LlmProvider;
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+}
+
+export function resolveProvider(
+  override?: ChittiLlmCredentials | null,
+): LlmProvider {
+  if (override && override.provider && override.provider !== 'auto') {
+    if (
+      override.provider === 'anthropic' ||
+      override.provider === 'openai' ||
+      override.provider === 'ollama'
+    ) {
+      return override.provider;
+    }
+  }
+  // If override carries an apiKey but no provider, infer from where the key
+  // would naturally be valid. Anthropic keys start with sk-ant-; OpenAI-style
+  // keys (incl. Kimi/OpenRouter) start with sk- (without ant-).
+  if (override?.apiKey) {
+    if (override.apiKey.startsWith('sk-ant-')) return 'anthropic';
+    if (override.apiKey.startsWith('sk-')) return 'openai';
+  }
   const explicit = (process.env.LLM_PROVIDER ?? '').toLowerCase().trim();
   if (
     explicit === 'anthropic' ||
@@ -46,8 +73,8 @@ export function resolveProvider(): LlmProvider {
 }
 
 /**
- * Try to detect a friendly brand name from the OpenAI-compatible base URL
- * — useful for surfacing "KIMI" / "OPENROUTER" / "GROQ" in the UI chip.
+ * Detect a friendly brand name from the OpenAI-compatible base URL —
+ * powers the "KIMI K2" / "OPENROUTER" / "GROQ" labelling in the UI chip.
  */
 function inferOpenAIBrand(baseUrl: string): string {
   const u = baseUrl.toLowerCase();
@@ -63,7 +90,6 @@ function inferOpenAIBrand(baseUrl: string): string {
 
 export function providerInfo(): {
   provider: LlmProvider;
-  /** Display label shown in the UI — may differ from `provider` for OpenAI-compatible (e.g. "kimi") */
   brand: string;
   model: string;
   openSource: boolean;
@@ -83,7 +109,6 @@ export function providerInfo(): {
     return {
       provider,
       brand,
-      // Sensible default model per brand when OPENAI_MODEL is unset.
       model:
         process.env.OPENAI_MODEL ??
         (brand === 'kimi'
@@ -93,9 +118,6 @@ export function providerInfo(): {
             : brand === 'deepseek'
               ? 'deepseek-chat'
               : 'gpt-4o-mini'),
-      // Kimi/DeepSeek/etc. are OSS-weighted in practice but we mark only the
-      // truly self-hostable case as openSource. Brands like Kimi-K2 are
-      // open-weight; flagging them as open is accurate.
       openSource:
         brand === 'kimi' || brand === 'deepseek' || brand === 'local',
     };
@@ -111,13 +133,24 @@ export function providerInfo(): {
 /**
  * Stream a Chitti response using whichever provider is configured.
  * The chat route should call this and forward events as SSE.
+ *
+ * If `credentials` is supplied, those take precedence over env vars
+ * for THIS request only (nothing is persisted).
  */
 export function streamChat(args: {
   messages: ChatMessage[];
   signal?: AbortSignal;
+  credentials?: ChittiLlmCredentials | null;
 }): AsyncGenerator<StreamEvent, void, unknown> {
-  const provider = resolveProvider();
-  if (provider === 'openai') return streamOpenAIResponse(args);
-  if (provider === 'ollama') return streamOllamaResponse(args);
-  return streamChittiResponse(args);
+  const provider = resolveProvider(args.credentials);
+  const inner = {
+    messages: args.messages,
+    signal: args.signal,
+    apiKey: args.credentials?.apiKey,
+    baseUrl: args.credentials?.baseUrl,
+    model: args.credentials?.model,
+  };
+  if (provider === 'openai') return streamOpenAIResponse(inner);
+  if (provider === 'ollama') return streamOllamaResponse(inner);
+  return streamChittiResponse(inner);
 }

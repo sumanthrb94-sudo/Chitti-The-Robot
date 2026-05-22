@@ -107,3 +107,43 @@ export interface VoiceSettings {
   pitch: number;
   volume: number;
 }
+
+/* ─────────────────────────  User-supplied credentials (BYO-key) ───────────────────────── */
+
+/**
+ * Browser-side settings stored in localStorage. Sent with each chat / tts
+ * request so each user can bring their own LLM + TTS keys without anyone
+ * else getting access to them.
+ *
+ * The server never persists these — it forwards them straight to the
+ * upstream provider for the duration of one request.
+ */
+export type LlmProviderId = 'anthropic' | 'openai' | 'ollama' | 'auto';
+
+export interface ChittiLlmCredentials {
+  provider: LlmProviderId;
+  /** API key for the chosen provider. Optional — server env vars are the fallback. */
+  apiKey?: string;
+  /** OpenAI-compatible base URL: Moonshot/Kimi, OpenRouter, Groq, DeepSeek, etc. */
+  baseUrl?: string;
+  /** Model identifier override. */
+  model?: string;
+}
+
+export type TtsProviderId = 'browser' | 'elevenlabs';
+
+export interface ChittiTtsCredentials {
+  provider: TtsProviderId;
+  /** ElevenLabs API key. Only used when provider === 'elevenlabs'. */
+  apiKey?: string;
+  /** ElevenLabs voice id (default: Rachel = 21m00Tcm4TlvDq8ikWAM). */
+  voiceId?: string;
+  /** ElevenLabs model id (default: eleven_turbo_v2_5). */
+  modelId?: string;
+}
+
+export interface ChittiSettings {
+  llm: ChittiLlmCredentials;
+  tts: ChittiTtsCredentials;
+  voice: VoiceSettings;
+}

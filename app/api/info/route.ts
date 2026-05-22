@@ -22,8 +22,12 @@ export function GET() {
     openSource: info.openSource,
     hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
     hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY),
+    hasElevenLabsKey: Boolean(process.env.ELEVENLABS_API_KEY),
     openaiBaseUrl: process.env.OPENAI_BASE_URL || null,
     isVercel: process.env.VERCEL === '1',
+    // Tools: list_tables, describe_table, query_database, visualize_data,
+    // get_time, web_search, wikipedia_search, get_weather, get_crypto_price,
+    // get_hackernews_top.
     toolCount: 10,
   });
 }

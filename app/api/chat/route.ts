@@ -1,17 +1,26 @@
 /**
  * POST /api/chat
  *
- * Body: { messages: ChatMessage[] }
+ * Body: {
+ *   messages: ChatMessage[];
+ *   credentials?: { provider, apiKey, baseUrl, model }
+ * }
  * Returns: Server-Sent Events stream of StreamEvent objects, one per line in
- *   `data: <json>\n\n` format. Client cancellation (request.signal aborted)
- *   propagates straight into the Anthropic stream so we stop billing tokens.
+ *   `data: <json>\n\n` format.
+ *
+ * `credentials` is the user's BYO-key envelope from the browser (Settings →
+ * paste your Kimi / Claude / OpenAI key). When supplied, it overrides server
+ * env vars for this request only — we never persist it.
+ *
+ * Client cancellation (request.signal aborted) propagates straight into the
+ * upstream LLM stream so we stop billing tokens promptly.
  */
 
 import { NextRequest } from 'next/server';
 
 import { providerInfo, streamChat } from '@/lib/llm';
 import type { StreamEvent } from '@/lib/stream-event';
-import type { ChatMessage } from '@/types';
+import type { ChatMessage, ChittiLlmCredentials } from '@/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,6 +52,29 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   const chatMessages = messages as ChatMessage[];
+
+  // BYO-key envelope: if the browser passes credentials, they override env
+  // for this request only. Fields are sanity-checked so malformed bodies
+  // can't crash the route.
+  const rawCreds = (body as { credentials?: unknown }).credentials;
+  let credentials: ChittiLlmCredentials | null = null;
+  if (rawCreds && typeof rawCreds === 'object') {
+    const c = rawCreds as Record<string, unknown>;
+    const provider = typeof c.provider === 'string' ? c.provider : undefined;
+    const validProvider =
+      provider === 'anthropic' ||
+      provider === 'openai' ||
+      provider === 'ollama' ||
+      provider === 'auto'
+        ? provider
+        : 'auto';
+    credentials = {
+      provider: validProvider,
+      apiKey: typeof c.apiKey === 'string' ? c.apiKey : undefined,
+      baseUrl: typeof c.baseUrl === 'string' ? c.baseUrl : undefined,
+      model: typeof c.model === 'string' ? c.model : undefined,
+    };
+  }
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -65,15 +97,19 @@ export async function POST(request: NextRequest): Promise<Response> {
       };
       request.signal.addEventListener('abort', onAbort);
 
-      // Log which provider handled the request — useful when toggling between
-      // proprietary Claude and self-hosted Ollama.
+      // Provider summary for logs — without leaking the API key. When the
+      // user supplies their own key we log "byo" instead of the model name.
       const info = providerInfo();
-      console.log(`[chitti] provider=${info.provider} model=${info.model} oss=${info.openSource}`);
+      const byo = credentials?.apiKey ? 'byo' : 'env';
+      console.log(
+        `[chitti] provider=${info.provider} model=${info.model} oss=${info.openSource} creds=${byo}`,
+      );
 
       try {
         for await (const event of streamChat({
           messages: chatMessages,
           signal: request.signal,
+          credentials,
         })) {
           if (closed || request.signal.aborted) break;
           controller.enqueue(encoder.encode(sseEncode(event)));

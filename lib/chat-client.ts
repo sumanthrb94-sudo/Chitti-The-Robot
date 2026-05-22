@@ -10,7 +10,8 @@
  * (available in Node 18+ and all modern browsers).
  */
 
-import type { Artifact, ChatMessage } from '@/types';
+import { getLlmRequestCredentials } from '@/lib/settings';
+import type { Artifact, ChatMessage, ChittiLlmCredentials } from '@/types';
 
 export type StreamEvent =
   | { type: 'text'; delta: string }
@@ -23,6 +24,8 @@ export interface StreamChatArgs {
   messages: ChatMessage[];
   onEvent: (event: StreamEvent) => void;
   signal?: AbortSignal;
+  /** Optional override; defaults to whatever the user saved in Settings. */
+  credentials?: ChittiLlmCredentials | null;
 }
 
 /**
@@ -34,7 +37,12 @@ export async function streamChat({
   messages,
   onEvent,
   signal,
+  credentials,
 }: StreamChatArgs): Promise<void> {
+  // If the caller didn't supply credentials, pull whatever is saved in
+  // Settings. `null` means "fall back to server env vars".
+  const creds = credentials !== undefined ? credentials : getLlmRequestCredentials();
+
   let response: Response;
   try {
     response = await fetch('/api/chat', {
@@ -43,7 +51,7 @@ export async function streamChat({
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
       },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, credentials: creds }),
       signal,
     });
   } catch (e) {

@@ -126,13 +126,18 @@ function errMessage(e: unknown): string {
 export async function* streamOllamaResponse({
   messages,
   signal,
+  baseUrl: baseUrlOverride,
+  model: modelOverride,
 }: {
   messages: ChatMessage[];
   signal?: AbortSignal;
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
 }): AsyncGenerator<StreamEvent, void, unknown> {
   const host =
-    process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434';
-  const model = process.env.OLLAMA_MODEL ?? 'llama3.1:8b';
+    baseUrlOverride || process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+  const model = modelOverride || process.env.OLLAMA_MODEL || 'llama3.1:8b';
 
   const client = new Ollama({ host });
   const tools = toOllamaTools(CHITTI_TOOLS);

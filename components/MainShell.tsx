@@ -22,14 +22,16 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Database, Mic, MicOff, Sparkles, Wrench } from 'lucide-react';
+import { Database, Mic, MicOff, Settings, Sparkles, Wrench } from 'lucide-react';
 import { cn, nowIso, uid } from '@/lib/utils';
 import { useChittiStore } from '@/lib/store';
 import { streamChat, type StreamEvent } from '@/lib/chat-client';
+import { getTtsRequestCredentials } from '@/lib/settings';
 import { cancelSpeech, isVoiceOutputSupported, speak } from '@/lib/voice';
 import ChittiOrb from './ChittiOrb';
 import ConversationPanel from './ConversationPanel';
 import InputBar from './InputBar';
+import SettingsModal from './SettingsModal';
 import SystemStatus from './SystemStatus';
 import ViewportHUD from './ViewportHUD';
 import type { Artifact, ChatMessage } from '@/types';
@@ -92,6 +94,7 @@ export default function MainShell() {
 
   const abortRef = useRef<AbortController | null>(null);
   const [ttsSupported, setTtsSupported] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [llmInfo, setLlmInfo] = useState<{
     provider: 'anthropic' | 'ollama' | 'openai';
     brand: string;
@@ -227,13 +230,14 @@ export default function MainShell() {
           finalText = lastAsst?.content ?? '';
         }
 
-        // Speak if voice is on.
+        // Speak if voice is on. Pass the user's TTS credentials so we
+        // route through ElevenLabs when configured, else browser TTS.
         const currentState = useChittiStore.getState().state;
         if (currentState !== 'error') {
           if (voiceEnabled && finalText.trim().length > 0 && ttsSupported) {
             setState('speaking');
             try {
-              await speak(finalText, voiceSettings);
+              await speak(finalText, voiceSettings, getTtsRequestCredentials());
             } catch {
               /* speech errors are non-fatal */
             }
@@ -336,6 +340,8 @@ export default function MainShell() {
         label: 'MODEL',
         value: modelChipValue,
         tone: modelChipTone,
+        // Tap the chip → open Settings on the Brain tab. Faster discovery.
+        onClick: () => setSettingsOpen(true),
       },
       {
         icon: <Database className="w-4 h-4" strokeWidth={1.8} />,
@@ -363,10 +369,24 @@ export default function MainShell() {
           + edge rails sit behind everything else. pointer-events: none. */}
       <ViewportHUD />
 
-      {/* Top HUD strip */}
-      <header className="px-4 pt-4 pb-2 relative z-10">
-        <SystemStatus />
+      {/* Top HUD strip + gear icon for Settings */}
+      <header className="px-4 pt-4 pb-2 relative z-10 flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <SystemStatus />
+        </div>
+        <button
+          type="button"
+          onClick={() => setSettingsOpen(true)}
+          title="Settings (API keys & voice)"
+          aria-label="Open settings"
+          className="flex items-center justify-center w-10 h-10 rounded-full border border-chitti-500/60 bg-chitti-900/40 text-chitti-200 hover:bg-chitti-800/60 hover:text-chitti-100 transition-colors"
+          style={{ boxShadow: '0 0 14px rgba(0, 184, 230, 0.25)' }}
+        >
+          <Settings className="w-4 h-4" strokeWidth={1.8} />
+        </button>
       </header>
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       {/* Main grid.
           Order on mobile: conversation FIRST (order-1), orb compact (order-2).

@@ -148,22 +148,29 @@ function errMessage(e: unknown): string {
 export async function* streamOpenAIResponse({
   messages,
   signal,
+  apiKey: apiKeyOverride,
+  baseUrl: baseUrlOverride,
+  model: modelOverride,
 }: {
   messages: ChatMessage[];
   signal?: AbortSignal;
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
 }): AsyncGenerator<StreamEvent, void, unknown> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = apiKeyOverride || process.env.OPENAI_API_KEY;
   if (!apiKey) {
     yield {
       type: 'error',
       error:
-        'OPENAI_API_KEY is not set. Set it (plus OPENAI_BASE_URL for Kimi/OpenRouter/etc.) in your environment.',
+        'No API key. Paste your Kimi/OpenAI/OpenRouter key in Chitti Settings, or set OPENAI_API_KEY on the server.',
     };
     return;
   }
 
-  const baseURL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const baseURL =
+    baseUrlOverride || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+  const model = modelOverride || process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
   const client = new OpenAI({ apiKey, baseURL });
   const tools = toOpenAITools(CHITTI_TOOLS);

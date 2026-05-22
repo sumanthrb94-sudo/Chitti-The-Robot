@@ -163,21 +163,27 @@ function errMessage(e: unknown): string {
 export async function* streamChittiResponse({
   messages,
   signal,
+  apiKey: apiKeyOverride,
+  model: modelOverride,
 }: {
   messages: ChatMessage[];
   signal?: AbortSignal;
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
 }): AsyncGenerator<StreamEvent, void, unknown> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = apiKeyOverride || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     yield {
       type: 'error',
-      error: 'ANTHROPIC_API_KEY is not set on the server.',
+      error:
+        'No Anthropic API key. Paste one in Chitti Settings, or set ANTHROPIC_API_KEY on the server.',
     };
     return;
   }
 
   const client = new Anthropic({ apiKey });
-  const model = process.env.CHITTI_MODEL ?? 'claude-sonnet-4-6';
+  const model = modelOverride || process.env.CHITTI_MODEL || 'claude-sonnet-4-6';
 
   // Running Anthropic-format conversation we mutate across iterations.
   const convo: AnthropicMessage[] = toAnthropicMessages(messages);
