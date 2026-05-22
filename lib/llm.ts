@@ -78,7 +78,7 @@ export function resolveProvider(
  */
 function inferOpenAIBrand(baseUrl: string): string {
   const u = baseUrl.toLowerCase();
-  if (u.includes('moonshot')) return 'kimi';
+  if (u.includes('kimi.com') || u.includes('moonshot')) return 'kimi';
   if (u.includes('openrouter')) return 'openrouter';
   if (u.includes('together')) return 'together';
   if (u.includes('groq')) return 'groq';

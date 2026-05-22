@@ -54,9 +54,16 @@ const LLM_PRESETS: ProviderPreset[] = [
   {
     id: 'openai',
     label: 'Kimi',
+    baseUrl: 'https://api.kimi.com/coding/v1',
+    model: 'kimi-latest',
+    hint: 'Kimi Code (platform.kimi.ai). Use this if your key starts with sk-kimi-.',
+  },
+  {
+    id: 'openai',
+    label: 'Moonshot',
     baseUrl: 'https://api.moonshot.ai/v1',
     model: 'kimi-k2-0905-preview',
-    hint: 'Moonshot Kimi. 256k context. Set OPENAI_BASE_URL to https://api.moonshot.ai/v1',
+    hint: 'Legacy Moonshot Platform (platform.moonshot.ai). For keys without the kimi- prefix.',
   },
   {
     id: 'openai',

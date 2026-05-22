@@ -168,9 +168,18 @@ export async function* streamOpenAIResponse({
     return;
   }
 
+  // Auto-route Kimi Code keys (sk-kimi-…) to the kimi.com endpoint when the
+  // user hasn't overridden the base URL. Those keys are rejected by
+  // api.moonshot.ai with a 401, so this saves a confused support round-trip.
+  const isKimiCodeKey = apiKey.startsWith('sk-kimi-');
   const baseURL =
-    baseUrlOverride || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-  const model = modelOverride || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    baseUrlOverride ||
+    process.env.OPENAI_BASE_URL ||
+    (isKimiCodeKey ? 'https://api.kimi.com/coding/v1' : 'https://api.openai.com/v1');
+  const model =
+    modelOverride ||
+    process.env.OPENAI_MODEL ||
+    (isKimiCodeKey ? 'kimi-latest' : 'gpt-4o-mini');
 
   const client = new OpenAI({ apiKey, baseURL });
   const tools = toOpenAITools(CHITTI_TOOLS);

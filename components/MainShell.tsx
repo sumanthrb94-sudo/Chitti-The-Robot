@@ -299,11 +299,15 @@ export default function MainShell() {
       return llmInfo.model.toUpperCase();
     }
     if (llmInfo.provider === 'openai') {
-      // Kimi: "kimi-k2-0905-preview" → "KIMI K2"
+      // Kimi flavours:
+      //   "kimi-latest"          → "KIMI LATEST"
+      //   "kimi-coding"          → "KIMI CODING"
+      //   "kimi-k2-0905-preview" → "KIMI K2"
       if (llmInfo.brand === 'kimi') {
         const m = llmInfo.model.match(/^kimi-(k\d+)/i);
         if (m) return `KIMI ${m[1].toUpperCase()}`;
-        return llmInfo.model.toUpperCase();
+        const tail = llmInfo.model.replace(/^kimi-/i, '');
+        return `KIMI ${tail.toUpperCase()}`;
       }
       // Other brands → BRAND + short model
       const shortModel = llmInfo.model.split('/').pop() ?? llmInfo.model;
