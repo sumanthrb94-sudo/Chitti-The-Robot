@@ -93,10 +93,13 @@ export default function MainShell() {
   const abortRef = useRef<AbortController | null>(null);
   const [ttsSupported, setTtsSupported] = useState(true);
   const [llmInfo, setLlmInfo] = useState<{
-    provider: 'anthropic' | 'ollama';
+    provider: 'anthropic' | 'ollama' | 'openai';
+    brand: string;
     model: string;
     openSource: boolean;
     hasAnthropicKey: boolean;
+    hasOpenAIKey: boolean;
+    openaiBaseUrl: string | null;
     isVercel: boolean;
     toolCount: number;
   } | null>(null);
@@ -286,19 +289,29 @@ export default function MainShell() {
   const modelChipValue = useMemo(() => {
     if (!llmInfo) return 'DETECTING…';
     if (llmInfo.provider === 'anthropic') {
-      // strip the "claude-" prefix, uppercase, e.g. "claude-sonnet-4-6" → "SONNET 4.6"
+      // "claude-sonnet-4-6" → "SONNET 4.6"
       const m = llmInfo.model.match(/^claude-([a-z]+)-(\d+)-(\d+)/i);
       if (m) return `${m[1].toUpperCase()} ${m[2]}.${m[3]}`;
       return llmInfo.model.toUpperCase();
     }
-    // ollama: show the family name uppercased, e.g. "llama3.1:8b" → "LLAMA3.1"
+    if (llmInfo.provider === 'openai') {
+      // Kimi: "kimi-k2-0905-preview" → "KIMI K2"
+      if (llmInfo.brand === 'kimi') {
+        const m = llmInfo.model.match(/^kimi-(k\d+)/i);
+        if (m) return `KIMI ${m[1].toUpperCase()}`;
+        return llmInfo.model.toUpperCase();
+      }
+      // Other brands → BRAND + short model
+      const shortModel = llmInfo.model.split('/').pop() ?? llmInfo.model;
+      return `${llmInfo.brand.toUpperCase()} ${shortModel.split('-')[0]?.toUpperCase() ?? ''}`.trim();
+    }
+    // ollama: "llama3.1:8b" → "LLAMA3.1"
     const base = llmInfo.model.split(':')[0]?.toUpperCase() ?? 'OLLAMA';
-    return `${base}`;
+    return base;
   }, [llmInfo]);
 
   // Warn tone when the resolved provider can't actually reach an LLM —
-  // most commonly: deployed on Vercel, no ANTHROPIC_API_KEY, fell back to
-  // Ollama (which isn't reachable from a serverless function).
+  // e.g. on Vercel, fell back to Ollama (unreachable from a serverless fn).
   const modelChipTone: 'ok' | 'warn' = useMemo(() => {
     if (!llmInfo) return 'ok';
     if (llmInfo.provider === 'ollama' && llmInfo.isVercel) return 'warn';

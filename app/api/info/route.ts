@@ -17,9 +17,12 @@ export function GET() {
   const info = providerInfo();
   return NextResponse.json({
     provider: info.provider,
+    brand: info.brand,
     model: info.model,
     openSource: info.openSource,
     hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+    hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY),
+    openaiBaseUrl: process.env.OPENAI_BASE_URL || null,
     isVercel: process.env.VERCEL === '1',
     toolCount: 10,
   });
