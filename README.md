@@ -14,14 +14,18 @@ This is **v0.1 — the web agent**. Native apps come next.
 ## What it does
 
 - **Voice in, voice out.** Push a button, speak. Chitti listens with the Web Speech API,
-  thinks with Claude, and replies through your speakers.
+  thinks with the LLM of your choice, and replies through your speakers.
 - **Live database analysis.** Ask "what were our top products last quarter?" and Chitti
   writes the SQL, runs it on the local SQLite demo DB, and renders a chart.
-- **Tool use.** Claude orchestrates 5 tools — `list_tables`, `describe_table`,
+- **Tool use.** The LLM orchestrates 5 tools — `list_tables`, `describe_table`,
   `query_database`, `visualize_data`, `get_time` — to answer complex questions
   end-to-end without you writing a line of SQL.
 - **Jarvis-grade UI.** Holographic orb that reacts to state (idle / listening /
   thinking / speaking), HUD telemetry, glass panels, neon cyan grid.
+- **Open-source first.** Runs end-to-end on free software: Next.js, React,
+  Tailwind, framer-motion, recharts, Zustand, better-sqlite3, Web Speech API,
+  Inter / JetBrains Mono / Orbitron (SIL OFL). The LLM is pluggable —
+  pick **Ollama** (local, OSS) or **Anthropic Claude** (hosted).
 
 ---
 
@@ -43,8 +47,8 @@ This is **v0.1 — the web agent**. Native apps come next.
 ┌───────────────────────┼─────────────────────────────────────────┐
 │                       ▼                NEXT.JS SERVER           │
 │  ┌──────────────────────────┐   ┌───────────────────────────┐   │
-│  │  Claude streaming loop   │──▶│   Tool dispatcher         │   │
-│  │  (Anthropic SDK)         │   │   list_tables             │   │
+│  │  LLM provider router     │──▶│   Tool dispatcher         │   │
+│  │  Claude  ⇆  Ollama (OSS) │   │   list_tables             │   │
 │  └──────────┬───────────────┘   │   describe_table          │   │
 │             │                   │   query_database  ─────┐  │   │
 │             │                   │   visualize_data       │  │   │
@@ -67,8 +71,11 @@ This is **v0.1 — the web agent**. Native apps come next.
 
 ### Prereqs
 - Node.js **≥ 20**
-- An **Anthropic API key** (`ANTHROPIC_API_KEY`)
 - A Chromium-based browser (best Web Speech API support; Safari and Firefox vary)
+- An LLM — pick ONE:
+  - **Ollama** (open-source, local) — install from [ollama.com](https://ollama.com), then
+    `ollama pull llama3.1:8b` (or `qwen2.5:7b`, or `mistral-nemo`).
+  - **Anthropic Claude** (hosted) — an `ANTHROPIC_API_KEY`.
 
 ### Install & run
 
@@ -78,7 +85,9 @@ npm install
 
 # 2. Configure
 cp .env.example .env.local
-# edit .env.local — paste your ANTHROPIC_API_KEY
+# edit .env.local — either:
+#   ANTHROPIC_API_KEY=sk-ant-…       (uses Claude)
+# OR leave ANTHROPIC_API_KEY empty   (auto-falls-back to Ollama at OLLAMA_BASE_URL)
 
 # 3. (Optional) seed the demo DB explicitly — otherwise it auto-seeds on first request
 npx tsx scripts/seed.ts
@@ -86,6 +95,19 @@ npx tsx scripts/seed.ts
 # 4. Launch
 npm run dev
 # open http://localhost:3000
+```
+
+### Pick your LLM provider
+
+```bash
+# Force Claude (hosted, proprietary)
+LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-... npm run dev
+
+# Force Ollama (local, OSS) — make sure `ollama serve` is running
+LLM_PROVIDER=ollama OLLAMA_MODEL=llama3.1:8b npm run dev
+
+# Auto-detect: if ANTHROPIC_API_KEY is set, Claude; otherwise Ollama
+npm run dev
 ```
 
 ### First conversation
@@ -209,14 +231,24 @@ This is **the web prototype**. The roadmap:
 
 ---
 
-## Stack
+## Stack (open-source first)
 
-- **Framework**: Next.js 14 (App Router) + React 18 + TypeScript
-- **AI**: Anthropic SDK (Claude Sonnet/Opus 4.x) — model selectable via `CHITTI_MODEL`
-- **UI**: TailwindCSS, framer-motion, lucide-react, recharts
-- **State**: Zustand
-- **DB**: better-sqlite3 (swappable)
-- **Voice**: Web Speech API (STT + TTS) — ElevenLabs slot ready for premium TTS
+Every dependency below is permissively licensed open source.
+
+| Layer | Tool | License |
+|---|---|---|
+| Framework | Next.js 14 (App Router) + React 18 | MIT |
+| Language | TypeScript | Apache 2.0 |
+| UI | TailwindCSS, framer-motion, lucide-react, recharts | MIT |
+| State | Zustand | MIT |
+| DB | better-sqlite3 (SQLite WAL) | MIT |
+| Voice | Web Speech API (browser-native STT + TTS) | W3C standard |
+| Fonts | Inter, JetBrains Mono, Orbitron — self-hosted via `next/font` | SIL OFL |
+| **LLM — Option A** | **Ollama** (llama3.1, qwen2.5, mistral-nemo, etc.) | **MIT** |
+| LLM — Option B | Anthropic Claude (via official SDK) | SDK MIT, API proprietary |
+
+The only proprietary slot is the *optional* hosted-LLM path. Run Chitti on
+Ollama and the entire stack — code, models, weights — is OSS.
 
 ---
 

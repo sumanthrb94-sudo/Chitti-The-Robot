@@ -2,7 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@400;500;700;900&display=swap');
+/*
+ * Fonts (Inter / JetBrains Mono / Orbitron — all SIL OFL, open-source) are
+ * loaded and self-hosted via next/font in app/layout.tsx. The CSS variables
+ * --font-sans / --font-mono / --font-display are wired through tailwind.config.ts
+ * so utilities like font-sans / font-mono / font-display resolve to them.
+ */
 
 :root {
   --bg-deep: #02060c;

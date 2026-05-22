@@ -30,9 +30,11 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ['"Orbitron"', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
-        sans: ['"Inter"', 'system-ui', 'sans-serif'],
+        // Resolved at runtime to next/font-injected CSS variables
+        // (set on <html> in app/layout.tsx). Self-hosted, no CDN.
+        display: ['var(--font-display)', '"Orbitron"', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', '"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        sans: ['var(--font-sans)', '"Inter"', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         glow: '0 0 24px rgba(0, 184, 230, 0.45)',

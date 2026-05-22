@@ -9,7 +9,8 @@
 
 import { NextRequest } from 'next/server';
 
-import { streamChittiResponse, type StreamEvent } from '@/lib/claude';
+import { providerInfo, streamChat } from '@/lib/llm';
+import type { StreamEvent } from '@/lib/stream-event';
 import type { ChatMessage } from '@/types';
 
 export const runtime = 'nodejs';
@@ -58,14 +59,19 @@ export async function POST(request: NextRequest): Promise<Response> {
       };
 
       const onAbort = () => {
-        // Stream consumer below also observes request.signal via streamChittiResponse,
+        // Stream consumer below also observes request.signal via streamChat,
         // but close the SSE channel promptly so the client unblocks.
         close();
       };
       request.signal.addEventListener('abort', onAbort);
 
+      // Log which provider handled the request — useful when toggling between
+      // proprietary Claude and self-hosted Ollama.
+      const info = providerInfo();
+      console.log(`[chitti] provider=${info.provider} model=${info.model} oss=${info.openSource}`);
+
       try {
-        for await (const event of streamChittiResponse({
+        for await (const event of streamChat({
           messages: chatMessages,
           signal: request.signal,
         })) {

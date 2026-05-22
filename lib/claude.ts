@@ -19,6 +19,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 import { CHITTI_SYSTEM_PROMPT } from '@/lib/system-prompt';
+import type { StreamEvent } from '@/lib/stream-event';
 import { CHITTI_TOOLS, executeTool } from '@/lib/tools';
 import { nowIso, uid } from '@/lib/utils';
 import type {
@@ -28,19 +29,7 @@ import type {
   ToolName,
 } from '@/types';
 
-/* ─────────────────────────  Public types  ───────────────────────── */
-
-export type StreamEvent =
-  | { type: 'text'; delta: string }
-  | { type: 'tool_use'; tool: ToolCall }
-  | {
-      type: 'tool_result';
-      toolUseId: string;
-      result: unknown;
-      artifact?: Artifact;
-    }
-  | { type: 'done'; finalMessage: ChatMessage }
-  | { type: 'error'; error: string };
+export type { StreamEvent } from '@/lib/stream-event';
 
 /* ─────────────────────────  Internal Anthropic shapes  ─────────────────────────
  *
