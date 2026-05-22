@@ -112,7 +112,7 @@ export function providerInfo(): {
       model:
         process.env.OPENAI_MODEL ??
         (brand === 'kimi'
-          ? 'kimi-k2-0905-preview'
+          ? 'kimi-k2.6'
           : brand === 'groq'
             ? 'llama-3.3-70b-versatile'
             : brand === 'deepseek'

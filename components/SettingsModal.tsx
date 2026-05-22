@@ -55,15 +55,15 @@ const LLM_PRESETS: ProviderPreset[] = [
     id: 'openai',
     label: 'Kimi',
     baseUrl: 'https://api.kimi.com/coding/v1',
-    model: 'kimi-latest',
-    hint: 'Kimi Code (platform.kimi.ai). Use this if your key starts with sk-kimi-.',
+    model: 'kimi-k2.6',
+    hint: 'Kimi Code (platform.kimi.ai). For keys starting with sk-kimi-. Note: this endpoint is gated to approved coding agents.',
   },
   {
     id: 'openai',
     label: 'Moonshot',
     baseUrl: 'https://api.moonshot.ai/v1',
-    model: 'kimi-k2-0905-preview',
-    hint: 'Legacy Moonshot Platform (platform.moonshot.ai). For keys without the kimi- prefix.',
+    model: 'kimi-k2.6',
+    hint: 'Moonshot Platform (platform.moonshot.ai). General-purpose Kimi API for plain sk- keys.',
   },
   {
     id: 'openai',
@@ -93,6 +93,59 @@ const LLM_PRESETS: ProviderPreset[] = [
     model: 'llama3.1:8b',
     hint: 'Local OSS. Only works if Ollama is reachable from where Chitti runs.',
   },
+];
+
+// Known model variants per provider — clicking a chip fills the MODEL input.
+// The text field stays editable, so users can still type any unlisted id.
+//
+// Lineup current as of May 2026. Kimi-K2 preview series and kimi-latest are
+// being deprecated; kimi-k2.6 is the flagship, kimi-k2.5 still active.
+interface ModelChip {
+  id: string;
+  note: string;
+}
+
+const KIMI_MODEL_CHIPS: ModelChip[] = [
+  { id: 'kimi-k2.6', note: 'Flagship, Apr 2026' },
+  { id: 'kimi-k2.5', note: 'Jan 2026 release' },
+  { id: 'kimi-k2-turbo-preview', note: 'Faster, lower cost' },
+  { id: 'kimi-k2-thinking', note: 'Reasoning variant' },
+];
+
+const MOONSHOT_LEGACY_CHIPS: ModelChip[] = [
+  { id: 'moonshot-v1-8k', note: 'Long context — 8k' },
+  { id: 'moonshot-v1-32k', note: 'Long context — 32k' },
+  { id: 'moonshot-v1-128k', note: 'Long context — 128k' },
+  { id: 'moonshot-v1-auto', note: 'Auto context size' },
+];
+
+const OPENAI_MODEL_CHIPS: ModelChip[] = [
+  { id: 'gpt-4o-mini', note: 'Fast + cheap' },
+  { id: 'gpt-4o', note: 'Standard' },
+  { id: 'o3-mini', note: 'Reasoning' },
+];
+
+const OPENROUTER_MODEL_CHIPS: ModelChip[] = [
+  { id: 'moonshotai/kimi-k2', note: 'Kimi via OpenRouter' },
+  { id: 'anthropic/claude-sonnet-4.5', note: 'Sonnet via OpenRouter' },
+  { id: 'openai/gpt-4o-mini', note: 'GPT-4o-mini via OpenRouter' },
+  { id: 'meta-llama/llama-3.3-70b-instruct', note: 'Llama 3.3' },
+];
+
+const GROQ_MODEL_CHIPS: ModelChip[] = [
+  { id: 'llama-3.3-70b-versatile', note: 'Llama 3.3 70B' },
+  { id: 'mixtral-8x7b-32768', note: 'Mixtral 8x7B' },
+];
+
+const DEEPSEEK_MODEL_CHIPS: ModelChip[] = [
+  { id: 'deepseek-chat', note: 'V3 chat' },
+  { id: 'deepseek-reasoner', note: 'R1 reasoning' },
+];
+
+const CLAUDE_MODEL_CHIPS: ModelChip[] = [
+  { id: 'claude-sonnet-4-6', note: 'Sonnet 4.6 — balanced' },
+  { id: 'claude-opus-4-7', note: 'Opus 4.7 — most capable' },
+  { id: 'claude-haiku-4-5', note: 'Haiku 4.5 — fastest' },
 ];
 
 // Curated ElevenLabs voices that suit a Jarvis-style assistant.
@@ -387,6 +440,19 @@ function BrainTab({
     setSettings((prev) => ({ ...prev, llm: { ...prev.llm, ...patch } }));
   };
 
+  // Pick the right chip list based on the active preset + base URL.
+  const modelChips: ModelChip[] = (() => {
+    if (activePresetLabel === 'Claude') return CLAUDE_MODEL_CHIPS;
+    if (activePresetLabel === 'Kimi') return KIMI_MODEL_CHIPS;
+    if (activePresetLabel === 'Moonshot')
+      return [...KIMI_MODEL_CHIPS, ...MOONSHOT_LEGACY_CHIPS];
+    if (activePresetLabel === 'OpenRouter') return OPENROUTER_MODEL_CHIPS;
+    if (activePresetLabel === 'Groq') return GROQ_MODEL_CHIPS;
+    if (activePresetLabel === 'DeepSeek') return DEEPSEEK_MODEL_CHIPS;
+    if (activePresetLabel === 'OpenAI') return OPENAI_MODEL_CHIPS;
+    return [];
+  })();
+
   return (
     <div className="space-y-5">
       <div>
@@ -457,10 +523,42 @@ function BrainTab({
                 ? 'claude-sonnet-4-6'
                 : settings.llm.provider === 'ollama'
                   ? 'llama3.1:8b'
-                  : 'kimi-k2-0905-preview'
+                  : 'kimi-k2.6'
             }
             ariaLabel="Model id"
           />
+
+          {modelChips.length > 0 && (
+            <div className="mt-2">
+              <div className="font-mono text-[9px] tracking-[0.3em] text-chitti-400/60 mb-1.5">
+                VARIANTS
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {modelChips.map((chip) => {
+                  const active = settings.llm.model === chip.id;
+                  return (
+                    <button
+                      key={chip.id}
+                      type="button"
+                      onClick={() => updateLlm({ model: chip.id })}
+                      title={chip.note}
+                      className={cn(
+                        'px-2 py-1 rounded border text-[10px] font-mono transition-colors',
+                        active
+                          ? 'border-chitti-400/80 bg-chitti-500/20 text-chitti-100'
+                          : 'border-chitti-700/60 text-chitti-300/90 hover:border-chitti-500/60 hover:text-chitti-100',
+                      )}
+                    >
+                      {chip.id}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-[10px] text-chitti-500/60 leading-snug">
+                Click a chip to fill the field. You can still type any custom model id.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

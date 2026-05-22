@@ -299,14 +299,19 @@ export default function MainShell() {
       return llmInfo.model.toUpperCase();
     }
     if (llmInfo.provider === 'openai') {
-      // Kimi flavours:
-      //   "kimi-latest"          → "KIMI LATEST"
-      //   "kimi-coding"          → "KIMI CODING"
-      //   "kimi-k2-0905-preview" → "KIMI K2"
+      // Kimi flavours (normalised for chip display):
+      //   "kimi-k2.6"            → "KIMI K2.6"
+      //   "kimi-k2.5"            → "KIMI K2.5"
+      //   "kimi-k2-turbo-preview"→ "KIMI K2 TURBO"
+      //   "kimi-k2-0905-preview" → "KIMI K2 0905"
+      //   "moonshot-v1-128k"     → "MOONSHOT V1 128K"
       if (llmInfo.brand === 'kimi') {
-        const m = llmInfo.model.match(/^kimi-(k\d+)/i);
-        if (m) return `KIMI ${m[1].toUpperCase()}`;
-        const tail = llmInfo.model.replace(/^kimi-/i, '');
+        if (llmInfo.model.startsWith('moonshot-')) {
+          return llmInfo.model.toUpperCase().replace(/-/g, ' ');
+        }
+        const dot = llmInfo.model.match(/^kimi-(k\d+(?:\.\d+)?)/i);
+        if (dot) return `KIMI ${dot[1].toUpperCase()}`;
+        const tail = llmInfo.model.replace(/^kimi-/i, '').replace(/-/g, ' ');
         return `KIMI ${tail.toUpperCase()}`;
       }
       // Other brands → BRAND + short model

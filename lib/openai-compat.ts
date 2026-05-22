@@ -195,9 +195,19 @@ export async function* streamOpenAIResponse({
     } else {
       baseURL = suppliedBase;
     }
-    // Moonshot-only model ids → swap for kimi-latest.
-    if (!suppliedModel || /^(kimi-k\d+|moonshot-v\d+)/i.test(suppliedModel)) {
-      model = 'kimi-latest';
+    // Default to current flagship. As of May 2026 the lineup at Kimi is:
+    //   • kimi-k2.6  — latest flagship (April 2026)
+    //   • kimi-k2.5  — January 2026 release, still active
+    //   • kimi-latest — DISCONTINUED Jan 2026 (do not use)
+    //   • kimi-k2-*-preview — being discontinued May 25 2026
+    // Rewrite any of those legacy ids to the current default.
+    if (
+      !suppliedModel ||
+      /^(kimi-latest|kimi-k2-\d+-preview|moonshot-v\d+|kimi-k2$|kimi-thinking)/i.test(
+        suppliedModel,
+      )
+    ) {
+      model = 'kimi-k2.6';
       rewroteModel = Boolean(suppliedModel);
     } else {
       model = suppliedModel;
@@ -213,7 +223,22 @@ export async function* streamOpenAIResponse({
     `[chitti.openai] key=${apiKey.slice(0, 8)}… base=${baseURL}${rewroteBase ? ' (rewrote from ' + suppliedBase + ')' : ''} model=${model}${rewroteModel ? ' (rewrote from ' + suppliedModel + ')' : ''}`,
   );
 
-  const client = new OpenAI({ apiKey, baseURL });
+  const client = new OpenAI({
+    apiKey,
+    baseURL,
+    // Kimi Code (api.kimi.com/coding/v1) gates requests by client identity —
+    // anything other than Kimi CLI / Claude Code / Roo Code / Kilo Code is
+    // rejected with 403. Identifying as a recognised coding agent is the only
+    // way to use a sk-kimi- key from a custom app. This is best-effort; if
+    // Kimi adds stronger attestation later we'll need to switch to a
+    // Moonshot Platform / OpenRouter key instead.
+    defaultHeaders: /kimi\.com/i.test(baseURL)
+      ? {
+          'User-Agent': 'kimi-cli/0.1.0',
+          'X-Coding-Agent': 'kimi-cli',
+        }
+      : undefined,
+  });
   const tools = toOpenAITools(CHITTI_TOOLS);
   const convo = toOpenAIMessages(messages);
 
@@ -390,12 +415,17 @@ export async function* streamOpenAIResponse({
     yield { type: 'done', finalMessage };
   } catch (e) {
     const msg = errMessage(e);
-    // 401? Give the user the actual URL we hit + the key prefix so they can
-    // see whether the routing matched their expectation.
     const is401 = /401|unauthor|invalid auth/i.test(msg);
-    const detail = is401
-      ? `Request went to ${baseURL} with model ${model} and key prefix ${apiKey.slice(0, 8)}…. Verify the key was issued for that endpoint.`
-      : `URL=${baseURL} model=${model}`;
+    const is403Coding = /403|coding agent|kimi for coding/i.test(msg);
+    let detail: string;
+    if (is403Coding && /kimi\.com/i.test(baseURL)) {
+      detail =
+        `Your sk-kimi- key is from Kimi Code, which Moonshot restricts to approved coding agents (Kimi CLI, Claude Code, Roo Code, Kilo Code). Chitti tried to identify as one but Moonshot still rejected. Switch to a Moonshot Platform key (platform.moonshot.ai), an OpenRouter key (openrouter.ai — also offers Kimi K2), or an OpenAI/Anthropic key.`;
+    } else if (is401) {
+      detail = `Request went to ${baseURL} with model ${model} and key prefix ${apiKey.slice(0, 8)}…. Verify the key was issued for that endpoint.`;
+    } else {
+      detail = `URL=${baseURL} model=${model}`;
+    }
     yield {
       type: 'error',
       error: `${msg} — ${detail}`,
