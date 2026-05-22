@@ -17,6 +17,7 @@ import { seedIfNeeded } from '@/lib/seed';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 const TablesOpSchema = z.object({ op: z.literal('tables') });
 const DescribeOpSchema = z.object({

@@ -14,6 +14,9 @@ import type { ChatMessage } from '@/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// Vercel: allow long-running streams for multi-tool-call conversations.
+// Max for Hobby is 60s; Pro is 300s. Set to 60 to work on both.
+export const maxDuration = 60;
 
 function sseEncode(event: StreamEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;

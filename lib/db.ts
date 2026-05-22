@@ -14,26 +14,45 @@
  */
 
 import Database from 'better-sqlite3';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 import type { QueryResult, TableSchema } from '@/types';
+// Seed is imported as a raw string via webpack's asset/source loader
+// (configured in next.config.mjs) so it ships inside the function bundle
+// on Vercel without any filesystem tracing.
+import SEED_SQL from '@/data/seed.sql';
 
 /* ─────────────────────────  Singleton  ───────────────────────── */
 
+/**
+ * Use an in-memory SQLite when:
+ *   - We're running on Vercel (read-only filesystem), or
+ *   - CHITTI_DB_MODE=memory is explicitly set.
+ *
+ * Otherwise prefer a local file so the DB persists across `npm run dev`
+ * restarts and the seed only runs once.
+ */
+const USE_MEMORY_DB =
+  process.env.VERCEL === '1' ||
+  process.env.CHITTI_DB_MODE === 'memory' ||
+  process.env.NODE_ENV === 'test';
+
 const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'chitti.db');
-const SEED_PATH = path.join(DATA_DIR, 'seed.sql');
+const DB_PATH = USE_MEMORY_DB ? ':memory:' : path.join(DATA_DIR, 'chitti.db');
 
 let _db: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (_db) return _db;
-  if (!existsSync(DATA_DIR)) {
+  if (!USE_MEMORY_DB && !existsSync(DATA_DIR)) {
     mkdirSync(DATA_DIR, { recursive: true });
   }
   _db = new Database(DB_PATH);
-  _db.pragma('journal_mode = WAL');
+  // WAL needs a writable filesystem; only enable for the file-backed mode.
+  if (!USE_MEMORY_DB) {
+    _db.pragma('journal_mode = WAL');
+  }
   _db.pragma('foreign_keys = ON');
   return _db;
 }
@@ -65,15 +84,14 @@ export function ensureSeeded(): void {
   }
   if (alreadySeeded) return;
 
-  if (!existsSync(SEED_PATH)) {
-    throw new Error(`Seed file missing at ${SEED_PATH}`);
+  if (!SEED_SQL || SEED_SQL.trim().length === 0) {
+    throw new Error('Seed SQL is empty — bundling of data/seed.sql failed.');
   }
-  const sql = readFileSync(SEED_PATH, 'utf-8');
 
   // Execute as a single transaction. `exec` already runs the whole script;
   // wrapping in BEGIN/COMMIT (via a transaction) gives us atomicity.
   const tx = db.transaction(() => {
-    db.exec(sql);
+    db.exec(SEED_SQL);
   });
   tx();
 }

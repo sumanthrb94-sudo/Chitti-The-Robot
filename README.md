@@ -100,6 +100,52 @@ npm run dev
 
 ---
 
+## Deploy to Vercel
+
+Chitti is Vercel-ready out of the box. The DB switches to **in-memory mode**
+when `VERCEL=1` is set (auto on Vercel), and `data/seed.sql` is bundled
+into the function via a webpack raw import so the demo dataset is always
+present on cold start.
+
+### One-time setup
+
+1. **Import the repo** in Vercel: https://vercel.com/new — pick this GitHub repo.
+2. **Framework Preset**: Next.js (auto-detected).
+3. **Environment variables** — add these in the Vercel dashboard under
+   *Settings → Environment Variables*:
+
+   | Name | Required | Value |
+   |---|---|---|
+   | `ANTHROPIC_API_KEY` | ✅ yes | Your Anthropic key (`sk-ant-…`) |
+   | `CHITTI_MODEL` | optional | `claude-sonnet-4-6` (default) or `claude-opus-4-7` |
+   | `CHITTI_DB_MODE` | optional | `memory` (auto-set on Vercel; leave blank) |
+
+4. **Deploy.** Click Deploy. First build takes ~90s; cold starts after that are <1s.
+
+### Vercel-specific notes
+
+- **Filesystem**: We use `:memory:` SQLite on Vercel — each cold start re-seeds
+  from the bundled `seed.sql` in ~200ms. Perfect for a demo / playground.
+  For persistent data, swap `lib/db.ts` to a hosted DB (Turso, Neon, Supabase).
+- **Streaming**: `/api/chat` sets `maxDuration = 60` (Hobby plan max). Pro plans
+  can extend up to 300s if your conversations get longer.
+- **Cost**: Each turn that uses tools makes 2–6 Claude calls. Watch your
+  Anthropic spend — set a usage cap in your Anthropic dashboard.
+- **Voice**: Web Speech API works fully client-side. No Vercel-side cost
+  for STT/TTS.
+
+### Limitations of the in-memory mode
+
+Since Vercel functions are stateless, every invocation gets a fresh seed.
+That means:
+- ✅ All demo queries work identically every time.
+- ❌ You can't INSERT/UPDATE data (we block writes anyway for safety).
+- ❌ Conversation memory is in-browser (Zustand) — not server-side.
+
+For production use cases needing real data, see *Roadmap → v0.3*.
+
+---
+
 ## Project layout
 
 ```
