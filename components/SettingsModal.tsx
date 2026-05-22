@@ -41,29 +41,17 @@ interface ProviderPreset {
 
 const LLM_PRESETS: ProviderPreset[] = [
   {
-    id: 'auto',
-    label: 'Auto',
-    hint: 'Pick provider from server env (whatever is configured on Vercel).',
+    id: 'openai',
+    label: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    model: 'moonshotai/kimi-k2',
+    hint: 'Recommended. One key gets you Kimi K2, Claude, GPT-4, Llama, and ~200 other models. Sign up at openrouter.ai — no client restrictions.',
   },
   {
     id: 'anthropic',
     label: 'Claude',
     model: 'claude-sonnet-4-6',
     hint: 'Anthropic. Key starts with sk-ant-...',
-  },
-  {
-    id: 'openai',
-    label: 'Kimi',
-    baseUrl: 'https://api.kimi.com/coding/v1',
-    model: 'kimi-k2.6',
-    hint: 'Kimi Code (platform.kimi.ai). For keys starting with sk-kimi-. Note: this endpoint is gated to approved coding agents.',
-  },
-  {
-    id: 'openai',
-    label: 'Moonshot',
-    baseUrl: 'https://api.moonshot.ai/v1',
-    model: 'kimi-k2.6',
-    hint: 'Moonshot Platform (platform.moonshot.ai). General-purpose Kimi API for plain sk- keys.',
   },
   {
     id: 'openai',
@@ -74,24 +62,36 @@ const LLM_PRESETS: ProviderPreset[] = [
   },
   {
     id: 'openai',
-    label: 'OpenRouter',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    model: 'anthropic/claude-3.5-sonnet',
-    hint: 'Single key for hundreds of models.',
-  },
-  {
-    id: 'openai',
     label: 'Groq',
     baseUrl: 'https://api.groq.com/openai/v1',
     model: 'llama-3.3-70b-versatile',
-    hint: 'Fast OSS inference.',
+    hint: 'Fast OSS inference. Free tier available.',
+  },
+  {
+    id: 'openai',
+    label: 'Moonshot',
+    baseUrl: 'https://api.moonshot.ai/v1',
+    model: 'kimi-k2.6',
+    hint: 'Moonshot Platform direct (platform.moonshot.ai — separate from platform.kimi.ai). For plain sk- keys without the kimi- prefix.',
+  },
+  {
+    id: 'openai',
+    label: 'Kimi',
+    baseUrl: 'https://api.kimi.com/coding/v1',
+    model: 'kimi-k2.6',
+    hint: '⚠ Kimi Code keys (sk-kimi-…) are restricted to Moonshot’s allowlisted CLIs and won’t work in custom apps. For Kimi K2 from Chitti, use OPENROUTER instead.',
+  },
+  {
+    id: 'auto',
+    label: 'Auto',
+    hint: 'Use whatever provider is configured via server env vars on Vercel.',
   },
   {
     id: 'ollama',
     label: 'Ollama',
     baseUrl: 'http://127.0.0.1:11434',
     model: 'llama3.1:8b',
-    hint: 'Local OSS. Only works if Ollama is reachable from where Chitti runs.',
+    hint: 'Local OSS. Only works if Ollama is reachable from where Chitti runs (not from Vercel).',
   },
 ];
 
@@ -126,10 +126,13 @@ const OPENAI_MODEL_CHIPS: ModelChip[] = [
 ];
 
 const OPENROUTER_MODEL_CHIPS: ModelChip[] = [
-  { id: 'moonshotai/kimi-k2', note: 'Kimi via OpenRouter' },
-  { id: 'anthropic/claude-sonnet-4.5', note: 'Sonnet via OpenRouter' },
-  { id: 'openai/gpt-4o-mini', note: 'GPT-4o-mini via OpenRouter' },
-  { id: 'meta-llama/llama-3.3-70b-instruct', note: 'Llama 3.3' },
+  { id: 'moonshotai/kimi-k2', note: 'Kimi K2 — main' },
+  { id: 'moonshotai/kimi-k2-0905', note: 'Kimi K2 0905 release' },
+  { id: 'moonshotai/kimi-k2:free', note: 'Kimi K2 — free tier' },
+  { id: 'anthropic/claude-sonnet-4.5', note: 'Sonnet 4.5' },
+  { id: 'openai/gpt-4o-mini', note: 'GPT-4o-mini — fast' },
+  { id: 'meta-llama/llama-3.3-70b-instruct', note: 'Llama 3.3 70B' },
+  { id: 'deepseek/deepseek-chat', note: 'DeepSeek V3' },
 ];
 
 const GROQ_MODEL_CHIPS: ModelChip[] = [

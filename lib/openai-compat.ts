@@ -223,22 +223,7 @@ export async function* streamOpenAIResponse({
     `[chitti.openai] key=${apiKey.slice(0, 8)}… base=${baseURL}${rewroteBase ? ' (rewrote from ' + suppliedBase + ')' : ''} model=${model}${rewroteModel ? ' (rewrote from ' + suppliedModel + ')' : ''}`,
   );
 
-  const client = new OpenAI({
-    apiKey,
-    baseURL,
-    // Kimi Code (api.kimi.com/coding/v1) gates requests by client identity —
-    // anything other than Kimi CLI / Claude Code / Roo Code / Kilo Code is
-    // rejected with 403. Identifying as a recognised coding agent is the only
-    // way to use a sk-kimi- key from a custom app. This is best-effort; if
-    // Kimi adds stronger attestation later we'll need to switch to a
-    // Moonshot Platform / OpenRouter key instead.
-    defaultHeaders: /kimi\.com/i.test(baseURL)
-      ? {
-          'User-Agent': 'kimi-cli/0.1.0',
-          'X-Coding-Agent': 'kimi-cli',
-        }
-      : undefined,
-  });
+  const client = new OpenAI({ apiKey, baseURL });
   const tools = toOpenAITools(CHITTI_TOOLS);
   const convo = toOpenAIMessages(messages);
 
@@ -420,7 +405,7 @@ export async function* streamOpenAIResponse({
     let detail: string;
     if (is403Coding && /kimi\.com/i.test(baseURL)) {
       detail =
-        `Your sk-kimi- key is from Kimi Code, which Moonshot restricts to approved coding agents (Kimi CLI, Claude Code, Roo Code, Kilo Code). Chitti tried to identify as one but Moonshot still rejected. Switch to a Moonshot Platform key (platform.moonshot.ai), an OpenRouter key (openrouter.ai — also offers Kimi K2), or an OpenAI/Anthropic key.`;
+        `sk-kimi- keys only authenticate from inside Moonshot's allowlisted coding agents (Kimi CLI, Claude Code, etc.). For Chitti, get an OpenRouter key at openrouter.ai and pick the OPENROUTER preset — it gives you Kimi K2 with no client restrictions.`;
     } else if (is401) {
       detail = `Request went to ${baseURL} with model ${model} and key prefix ${apiKey.slice(0, 8)}…. Verify the key was issued for that endpoint.`;
     } else {
